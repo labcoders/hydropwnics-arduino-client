@@ -276,7 +276,7 @@ short echo(uint8_t *recvData)
             if (theShort != 1)
             {
                 // Serial.println(theShort);
-                // Serial.println("booty shorts");
+                // Serial.println(theShort);
                 
                 fail();
                 return 0;
@@ -285,6 +285,7 @@ short echo(uint8_t *recvData)
             // Serial.println(recvData[4], HEX);
             // Copy data back.
             data[3] = recvData[4];
+            // data[3] = 5;
             done();
             return 1;
         default:
@@ -365,38 +366,47 @@ short tempIn(uint8_t *recvData)
     return 0;
 }
 
-int a = 0;
+int MAX_SIZE = 128;
+int INCREMENT = 128;
+uint8_t *recvData = malloc(MAX_SIZE);
+
+int currPos = 0;
+
+void blockingRead(int amount)
+{
+    int completed = 0;
+    while (completed < amount)
+    {
+        int temp = Serial.read();
+        if (temp == -1)
+        {
+            continue;
+        }
+        
+        recvData[currPos] = temp;
+        currPos++;
+        completed++;
+    }
+}
+
 void loop()
 {
     /*
         Busy loop because async.
     */
-    int MAX_SIZE = 128;
-    int INCREMENT = 128;
-    uint8_t *recvData = malloc(MAX_SIZE);
-    int size = 0;
-    while (Serial.available())
-    {
-        if (size >= MAX_SIZE)
-        {
-            recvData = realloc(recvData, MAX_SIZE + INCREMENT);
-            MAX_SIZE = MAX_SIZE + INCREMENT;
-        }
-        recvData[size] = Serial.read();
-        size++;
-    }
 
-    if (size == 0)
-    {
-        return;
-    }
+    blockingRead(4);
 
-    short responseLength = receiveHandler(size, recvData);
-    free(recvData);
+    short len = argLength(recvData);
+
+    blockingRead(len);
+
+    currPos = 0;
+
+    short responseLength = receiveHandler(len, recvData) + 3;
 
     for (int i = 0; i < responseLength; i++)
     {
-        Serial.print(data[i]);
+        Serial.write(data[i]);
     }
-    Serial.print('\n');
 }
