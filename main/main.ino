@@ -1,3 +1,4 @@
+#define INCREMENT 128
 /*
     Analog sensor pins.
 */
@@ -16,8 +17,6 @@ int lightOutPin = 11; // Light output pin to activate the relay.
 */
 int tempOutPin = A2;
 
-float lightValue = 0; // Value to store light value.
-
 /*
 bool processed = false;
 bool receivedData = false;
@@ -30,9 +29,14 @@ int length;
 void setup()
 {
     pinMode(lightInPin, INPUT);
+    pinMode(tempInPin, INPUT);
 
     pinMode(ledPin, OUTPUT);
     pinMode(pumpPin, OUTPUT);
+    pinMode(lightOutPin, OUTPUT);
+
+    pinMode(tempOutPin, OUTPUT);
+
     Serial.begin(9600);
 }
 
@@ -295,6 +299,12 @@ short echo(uint8_t *recvData)
     }
 }
 
+// Function to read voltage of an analog pin.
+double voltageAt(int pin)
+{
+    return 0.0049 * analogRead(pin);
+}
+
 // Light sensor action handler. Returns number
 // of bytes of data.
 short lightIn(uint8_t *recvData)
@@ -303,19 +313,20 @@ short lightIn(uint8_t *recvData)
     {
         // Info. And only info.
         case 0:
-            uint8_t *voltage = (uint8_t*) analogRead(lightInPin);
-            for (int i = 3; i < 7; i++)
+            uint8_t *voltage = (uint8_t*) &voltageAt(lightInPin);
+            for (int i = 3; i < 11; i++)
             {
                 data[i] = voltage[i-3];
             }
             done();
-            return 4;
+            return 8;
         default:
             fail();
             return 0;
     }
 }
 
+// Handler function for temperature setting.
 short tempOut(uint8_t *recvData)
 {
     switch (recvData[1])
@@ -328,13 +339,13 @@ short tempOut(uint8_t *recvData)
                 fail();
                 return 0;
             }
-            uint8_t *temperature = (uint8_t*) analogRead(tempOutPin);
-            for (int i = 3; i < 7; i++)
+            uint8_t *temperature = (uint8_t*) &voltageAt(tempOutPin);
+            for (int i = 3; i < 11; i++)
             {
                 data[i] = temperature[i-3];
             }
             done();
-            return 4;
+            return 8;
         // Set temperature level.
         case 1:
             // Expect float as argument.
@@ -361,13 +372,26 @@ short tempOut(uint8_t *recvData)
     }
 }
 
+// Handler action for temperature sensor.
 short tempIn(uint8_t *recvData)
 {
-    return 0;
+    switch (recvData[1])
+    {
+        case 0:
+            uint8_t *voltagePtr = (uint8_t*) &voltageAt(tempInPin);
+            for (int i = 3; i < 11; i++)
+            {
+                data[i] = voltagePtr[i-3];
+            }
+            done();
+            return 8;
+        default:
+            fail();
+            return 0;
+    }
 }
 
 int MAX_SIZE = 128;
-int INCREMENT = 128;
 uint8_t *recvData = malloc(MAX_SIZE);
 
 int currPos = 0;
@@ -392,13 +416,27 @@ void blockingRead(int amount)
 void loop()
 {
     /*
-        Busy loop because async.
-    */
+        All serial reading puts data into the 
+        recvData global variable.
 
+        Another global variable, currPos,
+        keeps track of the index that we currently
+        are at in recvData.
+
+        After we've read all our data, we can process it
+        and return synchronously. The loops handles
+        poorly timed serial input too, allowing us
+        to read partial serial input.
+
+        There is no way to recover from data loss.
+    */
+    // Read device id, action id, and length of args.
     blockingRead(4);
 
+    // Calculate length of args for next blocking read.
     short len = argLength(recvData);
 
+    // Read the rest of the arguments.
     blockingRead(len);
 
     currPos = 0;
