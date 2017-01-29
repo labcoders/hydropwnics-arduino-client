@@ -1,7 +1,3 @@
-#include <Wire.h>
-
-#define ADDRESS 0x04
-
 /*
     Analog sensor pins.
 */
@@ -22,8 +18,10 @@ int tempOutPin = A2;
 
 float lightValue = 0; // Value to store light value.
 
+/*
 bool processed = false;
 bool receivedData = false;
+*/
 
 uint8_t data[1024];
 int length;
@@ -31,9 +29,6 @@ int length;
 // TODO: Setup the rest of the pins.
 void setup()
 {
-    Wire.begin(ADDRESS);
-    Wire.onReceive(receiveHandler);
-    Wire.onRequest(requestHandler);
     pinMode(lightInPin, INPUT);
 
     pinMode(ledPin, OUTPUT);
@@ -41,6 +36,18 @@ void setup()
     Serial.begin(9600);
 }
 
+// Return argument length of data received from
+// master.
+short argLength(uint8_t *recvData)
+{
+    uint8_t theBytes[2];
+    theBytes[0] = recvData[2];
+    theBytes[1] = recvData[3];
+    short ret = *(short*) theBytes;
+    return ret;
+}
+
+/*
 void requestHandler()
 {
     // Handle case where we receive a read
@@ -69,6 +76,7 @@ void requestHandler()
     processed = false;
     receivedData = false;
 }
+*/
 
 // Set status code for failure.
 void fail()
@@ -82,6 +90,7 @@ void done()
     data[0] = 0;
 }
 
+/*
 // Pretty print data received from master.
 void prettyPrintData(uint8_t *recvData)
 {
@@ -105,63 +114,56 @@ void prettyPrintData(uint8_t *recvData)
     }
     Serial.print('\n');
 }
+*/
 
 // Handler for data received from master.
-void receiveHandler(int numBytes)
+short receiveHandler(int numBytes, uint8_t *recvData)
 {
-    while (receivedData)
+    if (numBytes == 0)
     {
-        delay(100);
-    }
-    receivedData = true;
-
-    uint8_t recvData[numBytes];
-
-    for (int i = 0; i < numBytes; i++)
-    {
-        recvData[i] = Wire.read();
+        return;
     }
 
     short dataLength = 0;
 
-    prettyPrintData(recvData);
+    //prettyPrintData(recvData);
 
     switch (recvData[0])
     {
         // Pump device.
         case 0:
-            Serial.println("Pump action.");
+            // Serial.println("Pump action.");
             dataLength = pump(recvData);
             break;
         // Light output device.
         case 1:
-            Serial.println("Light out action.");
+            // Serial.println("Light out action.");
             dataLength = lightOut(recvData);
             break;
         // Light sensor device.
         case 2:
-            Serial.println("Light in action.");
+            // Serial.println("Light in action.");
             dataLength = lightIn(recvData);
             break;
         // Temperature output device.
         case 3:
-            Serial.println("Temp out action.");
+            // Serial.println("Temp out action.");
             dataLength = tempOut(recvData);
             break;
         // Temperature sensor device.
         case 4:
-            Serial.println("Temp in action.");
+            // Serial.println("Temp in action.");
             dataLength = tempIn(recvData);
             break;
         // Bad device code.
         case 255:
-            Serial.println("Echo action.");
+            // Serial.println("Echo action.");
             dataLength = echo(recvData);
             break;
         default:
-            Serial.print("Did not recognize device code ");
-            Serial.print(recvData[0]);
-            Serial.println(".");
+            // Serial.print("Did not recognize device code ");
+            // Serial.print(recvData[0]);
+            // Serial.println(".");
             fail();
             break;
     }
@@ -170,19 +172,7 @@ void receiveHandler(int numBytes)
     // TODO: Check endianness.
     data[1] = shortBytes[0];
     data[2] = shortBytes[1];
-    // Done processing data.
-    processed = true;
-}
-
-// Return argument length of data received from
-// master.
-short argLength(uint8_t *recvData)
-{
-    uint8_t theBytes[2];
-    theBytes[0] = recvData[2];
-    theBytes[1] = recvData[3];
-    short ret = *(short*) theBytes;
-    return ret;
+    return dataLength;
 }
 
 // Pump device action handler. Return number of data
@@ -285,19 +275,20 @@ short echo(uint8_t *recvData)
             short theShort = argLength(recvData);
             if (theShort != 1)
             {
-                Serial.println("booty shorts");
+                // Serial.println(theShort);
+                // Serial.println("booty shorts");
                 
                 fail();
                 return 0;
             }
-            Serial.print("Data received was: ");
-            Serial.println(recvData[4], HEX);
+            // Serial.print("Data received was: ");
+            // Serial.println(recvData[4], HEX);
             // Copy data back.
             data[3] = recvData[4];
             done();
             return 1;
         default:
-            Serial.println("wtf mate");
+            // Serial.println("wtf mate");
             fail();
             return 0;
     }
@@ -374,10 +365,38 @@ short tempIn(uint8_t *recvData)
     return 0;
 }
 
+int a = 0;
 void loop()
 {
     /*
         Busy loop because async.
     */
-    delay(100);
+    int MAX_SIZE = 128;
+    int INCREMENT = 128;
+    uint8_t *recvData = malloc(MAX_SIZE);
+    int size = 0;
+    while (Serial.available())
+    {
+        if (size >= MAX_SIZE)
+        {
+            recvData = realloc(recvData, MAX_SIZE + INCREMENT);
+            MAX_SIZE = MAX_SIZE + INCREMENT;
+        }
+        recvData[size] = Serial.read();
+        size++;
+    }
+
+    if (size == 0)
+    {
+        return;
+    }
+
+    short responseLength = receiveHandler(size, recvData);
+    free(recvData);
+
+    for (int i = 0; i < responseLength; i++)
+    {
+        Serial.print(data[i]);
+    }
+    Serial.print('\n');
 }
