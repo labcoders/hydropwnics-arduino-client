@@ -224,6 +224,7 @@ bool writePinState(int pin, int val)
     {
         case 1:
             digitalWrite(pin, HIGH);
+            break;
         case 0:
             digitalWrite(pin, LOW);
     }
@@ -313,10 +314,11 @@ short lightIn(uint8_t *recvData)
     {
         // Info. And only info.
         case 0:
-            uint8_t *voltage = (uint8_t*) &voltageAt(lightInPin);
+            double voltage = voltageAt(lightInPin);
+            uint8_t *voltagePtr = (uint8_t*) &voltage;
             for (int i = 3; i < 11; i++)
             {
-                data[i] = voltage[i-3];
+                data[i] = voltagePtr[i-3];
             }
             done();
             return 8;
@@ -339,7 +341,8 @@ short tempOut(uint8_t *recvData)
                 fail();
                 return 0;
             }
-            uint8_t *temperature = (uint8_t*) &voltageAt(tempOutPin);
+            double voltage = voltageAt(tempOutPin);
+            uint8_t *temperature = (uint8_t*) &voltage;
             for (int i = 3; i < 11; i++)
             {
                 data[i] = temperature[i-3];
@@ -378,7 +381,8 @@ short tempIn(uint8_t *recvData)
     switch (recvData[1])
     {
         case 0:
-            uint8_t *voltagePtr = (uint8_t*) &voltageAt(tempInPin);
+            double voltage = voltageAt(tempInPin);
+            uint8_t *voltagePtr = (uint8_t*) &voltage;
             for (int i = 3; i < 11; i++)
             {
                 data[i] = voltagePtr[i-3];
