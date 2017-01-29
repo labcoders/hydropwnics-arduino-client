@@ -206,15 +206,19 @@ short receiveHandler(int numBytes, uint8_t *recvData)
         // Pump device.
         case 0:
             // Serial.println("Pump action.");
+            {
             dataLength = pump(recvData);
+            }
             break;
         // Light output device.
         case 1:
             // Serial.println("Light out action.");
+            {
             dataLength = lightOut(recvData);
+            }
             break;
         // Light sensor device.
-        case 2:
+        case 7:
             // Serial.println("Light in action.");
             dataLength = lightIn(recvData);
             break;
@@ -224,15 +228,14 @@ short receiveHandler(int numBytes, uint8_t *recvData)
             dataLength = tempOut(recvData);
             break;
         // Temperature sensor device.
-        case 4:
-            return 10;
-            // Serial.println("Temp in action.");
+        case 6:
             dataLength = tempIn(recvData);
             break;
         // Bad device code.
         case 5:
             dataLength = playMusic();
             done();
+            break;
         case 255:
             // Serial.println("Echo action.");
             dataLength = echo(recvData);
@@ -243,6 +246,11 @@ short receiveHandler(int numBytes, uint8_t *recvData)
             // Serial.println(".");
             fail();
             break;
+    }
+    // Explicit check for '4' for tempIn.
+    if (recvData[0] == 4)
+    {
+        dataLength = tempIn(recvData);
     }
     // Set lengths.
     uint8_t *shortBytes = (uint8_t*) &dataLength;
@@ -309,15 +317,7 @@ bool writePinState(int pin, int val)
 // Only reads digitally.
 int readPinState(int pin)
 {
-    int pinStatus = digitalRead(pin);
-    if (pinStatus == HIGH)
-    {
-        return 1;
-    }
-    else
-    {
-        return 0;
-    }
+    return digitalRead(pin);
 }
 
 // Light output action handler.
@@ -536,7 +536,6 @@ void loop()
     currPos = 0;
 
     short responseLength = receiveHandler(len, recvData) + 3;
-
     for (int i = 0; i < responseLength; i++)
     {
         Serial.write(data[i]);
